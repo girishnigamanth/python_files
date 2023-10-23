@@ -1,30 +1,24 @@
 import sys
-sys.path.append('/usr/local/lib/python3.8/dist-packages/metpy')
-sys.path.append('/users/PFS0220/graghuna/microhh/microhh_lagtraj/microhh/python')
+
 import numpy as np
 import netCDF4 as nc
 import xarray as xr
-import metpy.calc as mpcalc
-from metpy.units import units
 import math
-import os
-import microhh_tools as mht
+
 
 float_type = 'f8'
 
-def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p):
+def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster):
+    sys.path.append('/usr/local/lib/python3.8/dist-packages/metpy')
+    import metpy.calc as mpcalc
+    from metpy.units import units
+    if cluster=='cumulus':
+        sys.path.append('/home/girish/microhh_lagtraj/microhh/python')
+    elif cluster=='osc':
+        sys.path.append('/users/PFS0220/graghuna/microhh/microhh_lagtraj/microhh/python')
+    import os
+    import microhh_tools as mht
 
-    ############################################### Get Z from ini ####################################
-
-    # Get number of vertical levels and size from .ini file
-    with open(output_path+'eurec4a.ini') as f:
-        for line in f:
-            if(line.split('=')[0]=='ktot'):
-                kmax = int(line.split('=')[1])
-            if(line.split('=')[0]=='zsize'):
-                zsize = float(line.split('=')[1])
-
-    dz = zsize / kmax
     ############################## get forcing data from nc input #################################### 
     #netcdf_path = '~/microhh/microhh/cases/eurec4a/forcings/scm_in.ECMWF-fc_EUREC4A_coor-Lagrangian-traj1-p950_domain2.0x2.0_20200202_ndays5_sfcERA5.nc'
     #netcdf_path = '/data/eurec4a/data/forcings/new_domain.kpt.nc'
@@ -86,6 +80,12 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p):
     z_end_ind=np.nonzero((z_new>z_top))[0][0]
     z=z_new[0:z_end_ind+1]
     kmax=z.size
+
+    zh = 0.5*(z[:-1] + z[1:])
+    zh = np.append(0., zh)
+    zh = np.append(zh, z_new[z_end_ind+1])
+
+    time = time - time[0];
     ############################## Declare input variables to nc input and constants ##################################
 
     sat_r = np.zeros(time.size)
@@ -134,16 +134,29 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p):
     zh_rad = np.arange(   0, z_top-dz/2, dz)
     zh_rad = np.append(zh_rad, z_top)
     interp_rad=(np.logical_not(np.isnan(zun[0,:])))
+
     p_lay=np.zeros((time.size,z_rad.size)); p_lev=np.zeros((time.size,zh_rad.size));
     T_lay=np.zeros((time.size,z_rad.size)); T_lev=np.zeros((time.size,zh_rad.size));
     qt_rad=np.zeros((time.size,z_rad.size)); o3_rad=np.zeros((time.size,z_rad.size));
+    
+    p_lay_bg=np.zeros((time.size,z.size)); p_lev_bg=np.zeros((time.size,zh.size));
+    T_lay_bg=np.zeros((time.size,z.size)); T_lev_bg=np.zeros((time.size,zh.size));
+    qt_rad_bg=np.zeros((time.size,z.size)); o3_rad_bg=np.zeros((time.size,z.size));
+
     for i in range(0,time.size):
         p_lay[i,:] = np.interp(z_rad,zun[i,interp_rad],pres_un[i,interp_rad])
         p_lev[i,:] = np.interp(zh_rad,zun[i,interp_rad],pres_un[i,interp_rad])
         T_lay[i,:] = np.interp(z_rad,zun[i,interp_rad],T_un[i,interp_rad])
         T_lev[i,:] = np.interp(zh_rad,zun[i,interp_rad],T_un[i,interp_rad])
         qt_rad[i,:] = np.interp(z_rad,zun[i,interp_rad],qt_un[i,interp_rad])
-        o3_rad[i,:] = np.interp(z_rad,zun[i,interp_rad],o3_un[i,interp_rad])  
+        o3_rad[i,:] = np.interp(z_rad,zun[i,interp_rad],o3_un[i,interp_rad]) 
+
+        p_lay_bg[i,:] = np.interp(z,zun[i,interp_rad],pres_un[i,interp_rad])
+        p_lev_bg[i,:] = np.interp(zh,zun[i,interp_rad],pres_un[i,interp_rad])
+        T_lay_bg[i,:] = np.interp(z,zun[i,interp_rad],T_un[i,interp_rad])
+        T_lev_bg[i,:] = np.interp(zh,zun[i,interp_rad],T_un[i,interp_rad])
+        qt_rad_bg[i,:] = np.interp(z,zun[i,interp_rad],qt_un[i,interp_rad])
+        o3_rad_bg[i,:] = np.interp(z,zun[i,interp_rad],o3_un[i,interp_rad])  
 
     co2 =  414.e-6
     ch4 = 1650.e-9
@@ -152,7 +165,9 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p):
     o2 = 0.2095
     xm_air = 28.97; xm_h2o = 18.01528
     h2o=qt_rad*xm_air/xm_h2o
+    h2o_bg=qt_rad_bg*xm_air/xm_h2o
     ########################################################################
+    mht.copy_radfiles(destdir = output_path,gpt='128_112')
     if os.path.exists(output_path+"eurec4a_input.nc"):
         os.remove(output_path+"eurec4a_input.nc")
     nc_file = nc.Dataset(output_path+"eurec4a_input.nc", mode="w", datamodel="NETCDF4", clobber=False)
@@ -162,34 +177,52 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p):
     nc_file.createDimension("time_ls", time.size)
     nc_file.createDimension("time_surface", time.size)
     nc_file.createDimension("time_latlon", time.size)
+    nc_file.createDimension("lay", z_rad.size)
+    nc_file.createDimension("lev", zh_rad.size)
+    
     ######## Create Groups ############
     nc_group_init = nc_file.createGroup("init");
     nc_group_timedep = nc_file.createGroup("timedep");
     nc_group_rad = nc_file.createGroup("radiation")
     ######## Create Dimension Variables ############
+    nc_group_timedep.createDimension("time_ls", time.size)
+    nc_group_timedep.createDimension("lay", z_rad.size)
+    nc_group_timedep.createDimension("lev", zh_rad.size)
+
     nc_z = nc_file.createVariable("z", float_type, ("z"))
     nc_zh = nc_file.createVariable("zh", float_type, ("zh"))
+    nc_z_lay = nc_file.createVariable("z_lay", float_type, ("lay"))
+    nc_z_lev = nc_file.createVariable("z_lev", float_type, ("lev"))
     nc_time_ls = nc_file.createVariable("time_ls", float_type, ("time_ls"))
+    nc_time_rad = nc_group_timedep.createVariable("time_ls", float_type, ("time_ls"))
     nc_time_surface = nc_file.createVariable("time_surface", float_type, ("time_surface"))
     nc_time_latlon = nc_file.createVariable("time_latlon", float_type, ("time_latlon"))
+    
     ######## Assign Values to Dimension Variables ############
     nc_time_ls      [:] = time [:]
+    nc_time_rad     [:] = time [:]
     nc_time_surface [:] = time [:]
     nc_time_latlon  [:] = time [:]
+    nc_z            [:] = z    [:]
+    nc_zh           [:] = zh   [:]
     ######## Create Radiation Dimension and Variables  ############
-    nc_group_rad.createDimension("lay", z_rad.size)
-    nc_group_rad.createDimension("lev", zh_rad.size)
-    nc_z_lay = nc_group_rad.createVariable("z_lay", float_type, ("lay"))
-    nc_z_lev = nc_group_rad.createVariable("z_lev", float_type, ("lev"))
-    nc_p_lay = nc_group_rad.createVariable("p_lay", float_type, ("lay","time_ls"))
-    nc_p_lev = nc_group_rad.createVariable("p_lev", float_type, ("lev","time_ls"))
-    nc_T_lay = nc_group_rad.createVariable("t_lay", float_type, ("lay","time_ls"))
-    nc_T_lev = nc_group_rad.createVariable("t_lev", float_type, ("lev","time_ls"))
+
+    nc_p_lay = nc_group_rad.createVariable("p_lay", float_type, ("lay"))
+    nc_p_lev = nc_group_rad.createVariable("p_lev", float_type, ("lev"))
+    nc_T_lay = nc_group_rad.createVariable("t_lay", float_type, ("lay"))
+    nc_T_lev = nc_group_rad.createVariable("t_lev", float_type, ("lev"))
+
+    nc_p_lay_bg = nc_group_timedep.createVariable("p_lay", float_type, ("time_ls","lay"))
+    nc_p_lev_bg = nc_group_timedep.createVariable("p_lev", float_type, ("time_ls","lev"))
+    nc_T_lay_bg = nc_group_timedep.createVariable("t_lay", float_type, ("time_ls","lay"))
+    nc_T_lev_bg = nc_group_timedep.createVariable("t_lev", float_type, ("time_ls","lev"))
+
     nc_CO2 = nc_group_rad.createVariable("co2", float_type)
     nc_CH4 = nc_group_rad.createVariable("ch4", float_type)
     nc_N2O = nc_group_rad.createVariable("n2o", float_type)
     nc_O3  = nc_group_rad.createVariable("o3" , float_type, ("lay"))
-    nc_H2O_bg = nc_group_rad.createVariable("h2o_bg", float_type, ("lay","time_ls"))
+    nc_O3_bg  = nc_group_timedep.createVariable("o3_bg" , float_type, ("time_ls","lay"))
+    nc_H2O_bg = nc_group_timedep.createVariable("h2o_bg", float_type, ("time_ls","lay"))
     nc_H2O = nc_group_rad.createVariable("h2o", float_type, ("lay"))
     nc_N2  = nc_group_rad.createVariable("n2" , float_type)
     nc_O2  = nc_group_rad.createVariable("o2" , float_type)
@@ -200,10 +233,14 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p):
     ######## Assign Values to Radiation Variables ############
     nc_z_lay    [:]   = z_rad   [:]
     nc_z_lev    [:]   = zh_rad  [:]
-    nc_p_lay    [:,:] = np.transpose(p_lay   [:,:])
-    nc_p_lev    [:,:] = np.transpose(p_lev   [:,:])
-    nc_T_lay    [:,:] = np.transpose(T_lay   [:,:])
-    nc_T_lev    [:,:] = np.transpose(T_lev   [:,:])
+    nc_p_lay    [:] = p_lay   [0,:]
+    nc_p_lev    [:] = p_lev   [0,:]
+    nc_T_lay    [:] = T_lay   [0,:]
+    nc_T_lev    [:] = T_lev   [0,:]
+    nc_p_lay_bg [:,:] = p_lay   [:,:]
+    nc_p_lev_bg [:,:] = p_lev   [:,:]
+    nc_T_lay_bg [:,:] = T_lay   [:,:]
+    nc_T_lev_bg [:,:] = T_lev   [:,:]
     nc_CO2      [:]   = co2
     nc_CH4      [:]   = ch4
     nc_N2O      [:]   = n2o
@@ -214,14 +251,12 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p):
     nc_CFC22    [:]   = 0.
     nc_CCL4     [:]   = 0.
     nc_H2O      [:] = np.mean(h2o,axis=0)
-    nc_H2O_bg   [:,:] = np.transpose(h2o     [:,:])
+    nc_H2O_bg   [:,:] = h2o     [:,:]
     nc_O3       [:] = np.mean(o3_rad,axis=0)
-    ######################## Calculation of variables ############################################
-    zh = 0.5*(z[:-1] + z[1:])
-    zh = np.append(0., zh)
-    zh = np.append(zh, z_new[z_end_ind+1])
+    nc_O3_bg    [:] = o3_rad [:,:]
 
-    time = time - time[0];
+    ######################## Calculation of variables ############################################
+    
 
     for n in range(0,time.size):
         interp_arr=(np.logical_not(np.isnan(zun[n,:])))
@@ -275,8 +310,7 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p):
     #nc_file = nc.Dataset("eurec4a_input.nc", mode="w", datamodel="NETCDF4", clobber=False
 
     ##### initial conditions ############
-    nc_z            [:] = z    [:]
-    nc_zh           [:] = zh   [:]
+    
     nc_thl   = nc_group_init.createVariable("thl"   , float_type, ("z"))
     nc_qt    = nc_group_init.createVariable("qt"    , float_type, ("z"))
     nc_u     = nc_group_init.createVariable("u"     , float_type, ("z"))
@@ -292,6 +326,7 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p):
     nc_N2O = nc_group_init.createVariable("n2o", float_type)
     nc_O3  = nc_group_init.createVariable("o3" , float_type, ("z"))
     nc_H2O = nc_group_init.createVariable("h2o", float_type, ("z"))
+    nc_H2O_bg = nc_group_init.createVariable("h2o_bg", float_type, ("z"))
     nc_N2  = nc_group_init.createVariable("n2" , float_type)
     nc_O2  = nc_group_init.createVariable("o2" , float_type)
     nc_CFC11 = nc_group_init.createVariable("cfc11", float_type)
@@ -300,9 +335,6 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p):
     nc_CCL4  = nc_group_init.createVariable("ccl4" , float_type)
 
     ###### forcing conditions ############
-    nc_group_timedep.createDimension("time_ls", time.size)
-    nc_time_ls = nc_group_timedep.createVariable("time_ls", float_type, ("time_ls"))
-    nc_time_ls [:] = time [:]
 
     nc_group_timedep.createDimension("time_surface", time.size)
     nc_time_surface = nc_group_timedep.createVariable("time_surface", float_type, ("time_surface"))
@@ -370,6 +402,7 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p):
     nc_N2O[:] = n2o
     nc_O3 [:] = np.mean(o3_f,axis=0)
     nc_H2O[:] = np.mean(qt,axis=0) * xm_air/xm_h2o
+    nc_H2O_bg[:] = np.mean(qt,axis=0) * xm_air/xm_h2o
     nc_N2 [:] = n2
     nc_O2 [:] = o2
     nc_CFC11[:] = 0.
@@ -422,6 +455,6 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p):
     ini.save(output_path+'eurec4a.ini', allow_overwrite=True)
 
 #forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200202_narenpitak_extended.kpt_inversion.nc"
-forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200209.kpt.nc"
+forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200202_narenpitak_extended.kpt_inversion.nc"
 output_path='/fs/ess/PFS0220/eurec4a/case_feb9th_144_100m_2/'
-create_microhhforcing(forcing_path,output_path,tstart=0,z_top=30e3,sst_p=False)
+create_microhhforcing(forcing_path,output_path,tstart=0,z_top=6e3,sst_p=False,cluster='osc')
