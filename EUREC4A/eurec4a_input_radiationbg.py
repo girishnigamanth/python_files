@@ -8,7 +8,7 @@ import math
 
 float_type = 'f8'
 
-def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster):
+def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nudge_height):
     sys.path.append('/usr/local/lib/python3.8/dist-packages/metpy')
     import metpy.calc as mpcalc
     from metpy.units import units
@@ -122,7 +122,7 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster):
     cp  = 1005.
     Lv  = 2.5e6
     Rd  = 287.
-    tau = 10800;
+    tau = 21600;
 
 
     ######################## Radiation Calculation and NC input ##################################
@@ -277,7 +277,8 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster):
 
     ug = u; vg = v;
     p_sbot = pres0;
-    nudge_factor[:,:]=1./tau
+    z_nudge_ind=np.nonzero((z>nudge_height))[0][0]
+    nudge_factor[:,z_nudge_ind:-1]=1./tau
 
     for n in range(0,time.size):
         sat_r = mpcalc.saturation_mixing_ratio(p_sbot[n] * units.pascal , sst[n]* units.kelvin)
@@ -456,5 +457,5 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster):
 
 #forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200202_narenpitak_extended.kpt_inversion.nc"
 forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200202_narenpitak_extended.kpt_inversion.nc"
-output_path='/fs/ess/PFS0220/eurec4a/case_feb9th_144_100m_2/'
-create_microhhforcing(forcing_path,output_path,tstart=0,z_top=6e3,sst_p=False,cluster='osc')
+output_path='/fs/ess/PFS0220/eurec4a/Different_StartingDate/case_feb2nd_512_200m_6hr/'
+create_microhhforcing(forcing_path,output_path,tstart=0,z_top=12e3,sst_p=False,cluster='osc',nudge_height=4000)
