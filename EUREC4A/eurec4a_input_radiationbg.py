@@ -264,8 +264,8 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
         ql[n,:] = np.interp(z,zun[n,interp_arr],ql_un[n,interp_arr])
         u[n,:] = np.interp(z,zun[n,interp_arr],u_un[n,interp_arr])
         v[n,:] = np.interp(z,zun[n,interp_arr],v_un[n,interp_arr])
-        ugeo[n,:] = np.interp(z,zun[0,interp_arr],ug_un[0,interp_arr])
-        vgeo[n,:] = np.interp(z,zun[0,interp_arr],vg_un[0,interp_arr])
+        ugeo[n,:] = np.interp(z,zun[n,interp_arr],ug_un[n,interp_arr])
+        vgeo[n,:] = np.interp(z,zun[n,interp_arr],vg_un[n,interp_arr])
         omega[n,:] = np.interp(z,zun[n,interp_arr],omega_un[n,interp_arr])
         o3_f[n,:] = np.interp(z,zun[n,interp_arr],o3_un[n,interp_arr])
         pres[n,:] = np.interp(z,zun[n,interp_arr],pres_un[n,interp_arr])
@@ -275,24 +275,28 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
         uadv[n,:] = np.interp(z,zun[n,interp_arr],uadv_un[n,interp_arr])
         vadv[n,:] = np.interp(z,zun[n,interp_arr],vadv_un[n,interp_arr])
 
-    ug = u; vg = v;
+    ug = ugeo; vg = vgeo;
     p_sbot = pres0;
     z_nudge_ind=np.nonzero((z>nudge_height))[0][0]
     nudge_factor[:,z_nudge_ind:-1]=1./tau
-
+    xx=np.zeros((time.size,kmax))
     for n in range(0,time.size):
         sat_r = mpcalc.saturation_mixing_ratio(p_sbot[n] * units.pascal , sst[n]* units.kelvin)
         qt_bot[n] = 0.981 * mpcalc.specific_humidity_from_mixing_ratio(sat_r)
-        #qt_bot[n] = mpcalc.mixing_ratio_from_specific_humidity(qt_bot[n] * units('kg/kg'))
+        qt_bot[n] = mpcalc.mixing_ratio_from_specific_humidity(qt_bot[n] * units('kg/kg'))
         for k in range(0,kmax):
             w[n,k] = mpcalc.vertical_velocity(omega[n,k] * units.pascal / units.second, pres[n,k] * units.pascal, T[n,k] * units.kelvin) / (units.meter / units.second)
             th[n,k] = mpcalc.potential_temperature(pres[n,k] * units.pascal, T[n,k] * units.kelvin) / units.kelvin
             thl[n,k] = th[n,k] - (th[n,k]/T[n,k]) * (Lv/cp) * (ql[n,k]/(1-qt[n,k]))
+            xx[n,k] = np.max([0, np.min([1, (700e2-pres[n,k])/(700e2-150e2) ])] );
             
     fc_cal = mpcalc.coriolis_parameter(np.mean(lat)*units.degrees) * units.second
+    f=0.5*(1+np.cos(np.pi*xx))
     for n in range(0,time.size-1):
         wls[n,:] = np.interp(zh,z,w[n,:])
     wls[time.size-1,:] = wls[time.size-2,:]
+    for k in range(0,kmax):
+        wls[:,k] = wls[:,k] - f[:,k]*wls[:,0]
 
     ### Fluxes ###
     Ch=0.001094; Cq=0.001133
@@ -457,5 +461,5 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
 
 #forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200202_narenpitak_extended.kpt_inversion.nc"
 forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200202_narenpitak_extended.kpt_inversion.nc"
-output_path='/fs/ess/PFS0220/eurec4a/Different_StartingDate/case_feb2nd_512_200m_6hr/'
-create_microhhforcing(forcing_path,output_path,tstart=0,z_top=12e3,sst_p=False,cluster='osc',nudge_height=4000)
+output_path='/fs/ess/PFS0220/eurec4a/Case_Runs/Control_Runs/Feb2nd_31stjan/'
+create_microhhforcing(forcing_path,output_path,tstart=24,z_top=12e3,sst_p=False,cluster='osc',nudge_height=4000)
