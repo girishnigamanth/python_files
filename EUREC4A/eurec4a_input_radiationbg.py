@@ -67,7 +67,6 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
     z_new=np.zeros(300)
     dz=20
     z_new[0]=10;
-    z_abs=10;
     for i in range(1,z_new.size): 
         z_new[i]=z_new[i-1]+dz
         if i<7:
@@ -133,7 +132,7 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
     z_rad  = np.arange(dz/2, z_top, dz)
     zh_rad = np.arange(   0, z_top-dz/2, dz)
     zh_rad = np.append(zh_rad, z_top)
-    interp_rad=(np.logical_not(np.isnan(zun[0,:])))
+    
 
     p_lay=np.zeros((time.size,z_rad.size)); p_lev=np.zeros((time.size,zh_rad.size));
     T_lay=np.zeros((time.size,z_rad.size)); T_lev=np.zeros((time.size,zh_rad.size));
@@ -144,6 +143,7 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
     qt_rad_bg=np.zeros((time.size,z.size)); o3_rad_bg=np.zeros((time.size,z.size));
 
     for i in range(0,time.size):
+        interp_rad=(np.logical_not(np.isnan(zun[i,:])))
         p_lay[i,:] = np.interp(z_rad,zun[i,interp_rad],pres_un[i,interp_rad])
         p_lev[i,:] = np.interp(zh_rad,zun[i,interp_rad],pres_un[i,interp_rad])
         T_lay[i,:] = np.interp(z_rad,zun[i,interp_rad],T_un[i,interp_rad])
@@ -460,6 +460,8 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
     ini.save(output_path+'eurec4a.ini', allow_overwrite=True)
 
 #forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200202_narenpitak_extended.kpt_inversion.nc"
-forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200202_narenpitak_extended.kpt_inversion.nc"
-output_path='/fs/ess/PFS0220/eurec4a/Case_Runs/Control_Runs/Feb2nd_31stjan/'
-create_microhhforcing(forcing_path,output_path,tstart=24,z_top=12e3,sst_p=False,cluster='osc',nudge_height=4000)
+forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200209.kpt.nc"
+output_path='/fs/ess/PFS0220/eurec4a/Case_Runs/Control_Runs/Feb_9th_test/'
+create_microhhforcing(forcing_path,output_path,tstart=0,z_top=8e3,sst_p=False,cluster='osc',nudge_height=4000)
+
+
