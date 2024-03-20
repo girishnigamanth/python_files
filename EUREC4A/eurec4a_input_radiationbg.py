@@ -293,7 +293,10 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
             xx[n,k] = np.max([0, np.min([1, (700e2-pres[n,k])/(700e2-150e2) ])] );
             
     fc_cal = mpcalc.coriolis_parameter(np.mean(lat)*units.degrees) * units.second
-    f=0.5*(1+np.cos(np.pi*xx))
+    if surf_correction:
+        f=0.5*(1+np.cos(np.pi*xx))
+    else:
+        f=0*xx;
     for n in range(0,time.size-1):
         wls[n,:] = np.interp(zh,z,w[n,:])
     wls[time.size-1,:] = wls[time.size-2,:]
@@ -462,8 +465,9 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
     ini.save(output_path+'eurec4a.ini', allow_overwrite=True)
 
 #forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200202_narenpitak_extended.kpt_inversion.nc"
-forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200202_narenpitak_extended.kpt_inversion.nc"
-output_path='/fs/ess/PFS0220/eurec4a/Case_Runs/Increased_SST/'
-create_microhhforcing(forcing_path,output_path,tstart=24,z_top=8e3,sst_p=True,cluster='osc',nudge_height=4000)
+forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200209.kpt.nc"
+output_path='/fs/ess/PFS0220/eurec4a/Case_Runs/Feb_9th/Test_smaller_domain/'
+surf_correction=True
+create_microhhforcing(forcing_path,output_path,tstart=0,z_top=8e3,sst_p=False,cluster='osc',nudge_height=4000)
 
 
