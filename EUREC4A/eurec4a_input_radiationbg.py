@@ -121,7 +121,7 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
     cp  = 1005.
     Lv  = 2.5e6
     Rd  = 287.
-    tau = 21600;
+    
 
 
     ######################## Radiation Calculation and NC input ##################################
@@ -277,10 +277,10 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
         ugeo[n,:] = np.interp(z,zun[n,interp_arr],ug_un[n,interp_arr])
         vgeo[n,:] = np.interp(z,zun[n,interp_arr],vg_un[n,interp_arr])
 
-    ug = ugeo; vg = vgeo;
+    ug = u; vg = v;
     p_sbot = pres0;
     z_nudge_ind=np.nonzero((z>nudge_height))[0][0]
-    nudge_factor[:,z_nudge_ind:-1]=1./tau
+    nudge_factor[time_start:time_end,z_nudge_ind:-1]=1./tau
     xx=np.zeros((time.size,kmax))
     for n in range(0,time.size):
         sat_r = mpcalc.saturation_mixing_ratio(p_sbot[n] * units.pascal , sst[n]* units.kelvin)
@@ -369,7 +369,8 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
 
     ###### nudge conditions ##############
     
-    nc_nudge_factor = nc_group_init.createVariable("nudgefac", float_type, ("z"))
+    nc_nudge_factor = nc_group_timedep.createVariable("nudgefac", float_type, ("time_nudge","z"))
+    nc_nudge_factor_in = nc_group_init.createVariable("nudgefac", float_type, ("z"))
     nc_u_nudge = nc_group_timedep.createVariable(
         "u_nudge", float_type, ("time_nudge", "z"))
     nc_v_nudge = nc_group_timedep.createVariable(
@@ -434,7 +435,8 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
     nc_v_nudge[:, :] = v[:, :]
     nc_thl_nudge[:, :] = thl[:, :]
     nc_qt_nudge[:, :] = qt[:, :]
-    nc_nudge_factor[:] = nudge_factor[0, :]
+    nc_nudge_factor[:,:] = nudge_factor[:, :]
+    nc_nudge_factor_in[:] = nudge_factor[0, :]
 
     nc_file.close()
 
@@ -466,8 +468,10 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
 
 #forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200202_narenpitak_extended.kpt_inversion.nc"
 forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200209.kpt.nc"
-output_path='/fs/ess/PFS0220/eurec4a/Case_Runs/Feb_9th/Test_smaller_domain/'
+output_path='/fs/ess/PFS0220/eurec4a/Case_Runs/Feb_9th/Test_7thfeb/'
 surf_correction=True
-create_microhhforcing(forcing_path,output_path,tstart=0,z_top=8e3,sst_p=False,cluster='osc',nudge_height=4000)
+time_start=0;time_end=24;
+tau = 3*3600;
+create_microhhforcing(forcing_path,output_path,tstart=0,z_top=12e3,sst_p=False,cluster='osc',nudge_height=0)
 
 
