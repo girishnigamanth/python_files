@@ -4,7 +4,7 @@ import numpy as np
 import seaborn as sns
 
 model='MHH'
-hr_plot=54
+hr_plot=51
 
 
 pl.rcParams['xtick.labelsize'] = 16
@@ -29,16 +29,16 @@ if model=='MHH':
     MHH_qlbase_stacked=MHH_qlbase_stacked.where(MHH_qlbase_stacked['ql_base']>0,np.nan)
 
     
-    df=MHH_qlbase_stacked.isel(time=slice(hr_plot*12,(hr_plot+28)*12,24)).to_dataframe()
+    df=MHH_qlbase_stacked.isel(time=slice(hr_plot*12,(hr_plot+18)*12,36)).to_dataframe()
 
-    g=sns.displot(df,x="ql_base",y="ql_top",kind='kde',fill=False,levels=10,cbar=False,col='time',col_wrap=4)
+    g=sns.displot(df,x="ql_base",y="ql_top",kind='kde',fill=False,levels=10,cbar=False,col='time',col_wrap=3)
     pl.xlim(500,2500)
     pl.ylim(500,3000)
     g.set_axis_labels('Cloud Base $(m)$', 'Cloud Top $(m)$')
     g.set_titles('')
     pl.tight_layout()
     pl.show()
-    pl.savefig('/users/PFS0220/graghuna/Flower_MIP_Paper/Plots/Cloud_Top_base_Feb2nd_MHH_54hr.jpg',dpi=300, bbox_inches='tight')
+    pl.savefig('/users/PFS0220/graghuna/Flower_MIP_Paper/Plots/Cloud_Top_base_Feb2nd_poster.jpg',dpi=300, bbox_inches='tight')
 elif model=='MONC':
     MONC=xr.open_dataset('/fs/ess/PFS0220/eurec4a/MONC_results/d20200202_diagnostic_2d.nc',decode_times=False)
     MONC_stacked=MONC[['cltop','clbas']].stack(xy=('x','y'))
