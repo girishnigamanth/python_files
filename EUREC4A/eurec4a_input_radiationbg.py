@@ -8,7 +8,41 @@ import math
 
 float_type = 'f8'
 
-def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nudge_height):
+def z_grid(z_top, study, nudge_height):
+    if study=='lagrangian':
+        z_new = np.zeros(300)
+        dz = 20
+        z_new[0] = 10
+        for i in range(1, z_new.size):
+            z_new[i] = z_new[i-1] + dz
+            if i < 7:
+                dz = dz + int(round(0.1*dz, 0))
+            elif i == 7:
+                z_new[i] = 200
+                dz = 40
+            elif z_new[i] > nudge_height:
+                dz = dz + int(round(0.1*dz, 0))
+        z_end_ind = np.nonzero((z_new > z_top))[0][0]
+        z = z_new[0:z_end_ind+1]
+        zh = 0.5*(z[:-1] + z[1:])
+        zh = np.append(0., zh)
+        zh = np.append(zh, z_new[z_end_ind+1])
+    elif study=='cp_mip':
+        z_new = np.zeros(300)
+        dz = 40
+        z_new[0] = 20
+        for i in range(1, z_new.size):
+            z_new[i] = z_new[i-1] + dz
+            if z_new[i] > nudge_height:
+                dz = dz + int((0.1056*dz))
+        z_end_ind = np.nonzero((z_new > z_top))[0][0]
+        z = z_new[0:z_end_ind]
+        zh = 0.5*(z[:-1] + z[1:])
+        zh = np.append(0., zh)
+        zh = np.append(zh, z_new[z_end_ind])
+    return z,zh;
+
+def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nudge_height,study):
     sys.path.append('/usr/local/lib/python3.8/dist-packages/metpy')
     import metpy.calc as mpcalc
     from metpy.units import units
@@ -64,26 +98,8 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
     z0h=all_data['heat_rough'].values[select_arr];
     
     # set the height
-    z_new=np.zeros(300)
-    dz=20
-    z_new[0]=10;
-    for i in range(1,z_new.size): 
-        z_new[i]=z_new[i-1]+dz
-        if i<7:
-            dz=dz+int(round(0.1*dz,0));
-        elif i==7:
-            z_new[i]=200;
-            dz=40;
-        elif z_new[i]>5000:
-            dz=dz+int(round(0.1*dz,0));
-    z_end_ind=np.nonzero((z_new>z_top))[0][0]
-    z=z_new[0:z_end_ind+1]
+    z,zh=z_grid(z_top, study, nudge_height)
     kmax=z.size
-
-    zh = 0.5*(z[:-1] + z[1:])
-    zh = np.append(0., zh)
-    zh = np.append(zh, z_new[z_end_ind+1])
-
     time = time - time[0];
     ############################## Declare input variables to nc input and constants ##################################
 
@@ -121,7 +137,7 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
     cp  = 1005.
     Lv  = 2.5e6
     Rd  = 287.
-    
+    tau = 21600;
 
 
     ######################## Radiation Calculation and NC input ##################################
@@ -132,7 +148,6 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
     z_rad  = np.arange(dz/2, z_top, dz)
     zh_rad = np.arange(   0, z_top-dz/2, dz)
     zh_rad = np.append(zh_rad, z_top)
-    
 
     p_lay=np.zeros((time.size,z_rad.size)); p_lev=np.zeros((time.size,zh_rad.size));
     T_lay=np.zeros((time.size,z_rad.size)); T_lev=np.zeros((time.size,zh_rad.size));
@@ -159,8 +174,8 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
         o3_rad_bg[i,:] = np.interp(z,zun[i,interp_rad],o3_un[i,interp_rad])  
 
     co2 =  414.e-6
-    ch4 = 1650.e-9
-    n2o =  306.e-9
+    ch4 = 1879.e-9
+    n2o =  332.8e-9
     n2 = 0.7808
     o2 = 0.2095
     xm_air = 28.97; xm_h2o = 18.01528
@@ -274,13 +289,11 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
         tadv[n,:] = np.interp(z,zun[n,interp_arr],tadv_un[n,interp_arr])
         uadv[n,:] = np.interp(z,zun[n,interp_arr],uadv_un[n,interp_arr])
         vadv[n,:] = np.interp(z,zun[n,interp_arr],vadv_un[n,interp_arr])
-        ugeo[n,:] = np.interp(z,zun[n,interp_arr],ug_un[n,interp_arr])
-        vgeo[n,:] = np.interp(z,zun[n,interp_arr],vg_un[n,interp_arr])
 
-    ug = u; vg = v;
+    ug = ugeo; vg = vgeo;
     p_sbot = pres0;
     z_nudge_ind=np.nonzero((z>nudge_height))[0][0]
-    nudge_factor[time_start:time_end,z_nudge_ind:-1]=1./tau
+    nudge_factor[:,z_nudge_ind:-1]=1./tau
     xx=np.zeros((time.size,kmax))
     for n in range(0,time.size):
         sat_r = mpcalc.saturation_mixing_ratio(p_sbot[n] * units.pascal , sst[n]* units.kelvin)
@@ -293,10 +306,7 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
             xx[n,k] = np.max([0, np.min([1, (700e2-pres[n,k])/(700e2-150e2) ])] );
             
     fc_cal = mpcalc.coriolis_parameter(np.mean(lat)*units.degrees) * units.second
-    if surf_correction:
-        f=0.5*(1+np.cos(np.pi*xx))
-    else:
-        f=0*xx;
+    f=0.5*(1+np.cos(np.pi*xx))
     for n in range(0,time.size-1):
         wls[n,:] = np.interp(zh,z,w[n,:])
     wls[time.size-1,:] = wls[time.size-2,:]
@@ -369,8 +379,7 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
 
     ###### nudge conditions ##############
     
-    nc_nudge_factor = nc_group_timedep.createVariable("nudgefac", float_type, ("time_nudge","z"))
-    nc_nudge_factor_in = nc_group_init.createVariable("nudgefac", float_type, ("z"))
+    nc_nudge_factor = nc_group_init.createVariable("nudgefac", float_type, ("z"))
     nc_u_nudge = nc_group_timedep.createVariable(
         "u_nudge", float_type, ("time_nudge", "z"))
     nc_v_nudge = nc_group_timedep.createVariable(
@@ -427,16 +436,19 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
 
     nc_lat[:] = lat[:]
     nc_lon[:] = lon[:]
-    z_end_ind=np.nonzero((z>8000))[0][0]
+    z_end_ind=np.nonzero((z>nudge_height))[0][0]
     nc_utrans[:] = (np.max(ugeo[:,0:z_end_ind], axis=1)+np.min(ugeo[:,0:z_end_ind], axis=1))/2
     nc_vtrans[:] = (np.max(vgeo[:,0:z_end_ind], axis=1)+np.min(vgeo[:,0:z_end_ind], axis=1))/2
     
-    nc_u_nudge[:, :] = u[:, :]
-    nc_v_nudge[:, :] = v[:, :]
+    if study=='lagrangian':
+        nc_u_nudge[:, :] = u[:, :]
+        nc_v_nudge[:, :] = v[:, :]
+    elif study=='cp_mip':
+        nc_u_nudge[:, :] = ug[:, :]
+        nc_v_nudge[:, :] = vg[:, :]
     nc_thl_nudge[:, :] = thl[:, :]
     nc_qt_nudge[:, :] = qt[:, :]
-    nc_nudge_factor[:,:] = nudge_factor[:, :]
-    nc_nudge_factor_in[:] = nudge_factor[0, :]
+    nc_nudge_factor[:] = nudge_factor[0, :]
 
     nc_file.close()
 
@@ -444,7 +456,7 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
     ini = mht.Read_namelist(output_path+'eurec4a.ini.base')
 
     ini['grid']['ktot'] = kmax
-    ini['grid']['zsize'] = z_new[kmax]
+    ini['grid']['zsize'] = zh[kmax]
     ini['thermo']['pbot'] = p_sbot[0]
     ini['grid']['lat'] = np.mean(lat)
     ini['grid']['lon'] = np.mean(lon)
@@ -467,11 +479,6 @@ def create_microhhforcing(netcdf_path,output_path,tstart,z_top,sst_p,cluster,nud
     ini.save(output_path+'eurec4a.ini', allow_overwrite=True)
 
 #forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200202_narenpitak_extended.kpt_inversion.nc"
-forcing_path="/fs/ess/PFS0220/eurec4a/forcings/eurec4a_20200209.kpt.nc"
-output_path='/fs/ess/PFS0220/eurec4a/Case_Runs/Feb_9th/Test_7thfeb/'
-surf_correction=True
-time_start=0;time_end=24;
-tau = 3*3600;
-create_microhhforcing(forcing_path,output_path,tstart=0,z_top=12e3,sst_p=False,cluster='osc',nudge_height=0)
-
-
+forcing_path="/fs/ess/PFS0220/eurec4a/forcings/CP-MIP-2020-02-02.ERA5-LargeFlower.0500m.HYSPLIT.0.9deg.kpt.nc"
+output_path='/fs/ess/PFS0220/eurec4a/Case_Runs/CP_MIP/Feb_2nd/'
+create_microhhforcing(forcing_path,output_path,tstart=0,z_top=7e3,sst_p=False,cluster='osc',nudge_height=5000,study='cp_mip')
